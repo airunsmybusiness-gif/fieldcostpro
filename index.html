@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AI-powered invoice tracking for oil & gas consultants">
+    <title>FieldCostPro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState } = React;
+
+        // IMPORTANT: Replace this with your actual Vercel deployment URL after deploying
+        const API_ENDPOINT = '/api/process-invoice';
+
+        const COST_CODES = [
+            { code: '8301', name: 'Labour - Operations' },
+            { code: '8302', name: 'Equipment Rental' },
+            { code: '8303', name: 'Fuel' },
+            { code: '8305-160', name: 'Water Hauling' },
+            { code: '8305-170', name: 'Water Disposal' },
+            { code: '8306', name: 'Trucking & Transportation' },
+            { code: '8307', name: 'Chemicals' },
+            { code: '8401', name: 'Equipment Maintenance' },
+            { code: '8402', name: 'Facility Repairs' },
+            { code: '8403', name: 'Well Supplies' },
+            { code: 'OTHER', name: 'Other' }
+        ];
+
+        const SAMPLE_WELL = {
+            name: "ISH Rochester 2025",
+            operator: "ISH Energy",
+            afe: "12345-001"
+        };
+
+        // Icons
+        const CameraIcon = () => (
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+        );
+
+        const CheckIcon = () => (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+        );
+
+        const AlertIcon = () => (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+        );
+
+        const SparklesIcon = () => (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+            </svg>
+        );
+
+        const ListIcon = () => (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+            </svg>
+        );
+
+        const App = () => {
+            const [view, setView] = useState('home');
+            const [capturedImage, setCapturedImage] = useState(null);
+            const [isProcessing, setIsProcessing] = useState(false);
+            const [extractedData, setExtractedData] = useState(null);
+            const [error, setError] = useState(null);
+            const [savedEntries, setSavedEntries] = useState([]);
+
+            const processInvoice = async (imageBase64) => {
+                setIsProcessing(true);
+                setError(null);
+
+                try {
+                    const response = await fetch(API_ENDPOINT, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            imageBase64: imageBase64
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Failed to process invoice');
+                    }
+
+                    const data = await response.json();
+
+                    setExtractedData({
+                        ...data,
+                        afeNumber: SAMPLE_WELL.afe
+                    });
+
+                } catch (err) {
+                    console.error('Processing error:', err);
+                    setError(err.message || 'Failed to process invoice. Please try again.');
+                } finally {
+                    setIsProcessing(false);
+                }
+            };
+
+            const handleImageCapture = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    if (file.size > 5 * 1024 * 1024) {
+                        setError('Image too large. Please use a photo under 5MB.');
+                        return;
+                    }
+
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        setCapturedImage(e.target.result);
+                        processInvoice(e.target.result);
+                    };
+                    reader.onerror = () => {
+                        setError('Failed to read image file.');
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            const saveEntry = () => {
+                const entry = {
+                    ...extractedData,
+                    id: Date.now(),
+                    savedAt: new Date().toISOString()
+                };
+                setSavedEntries([entry, ...savedEntries]);
+                
+                alert(`✅ Saved!\n\n${entry.vendor}\n$${entry.amount}\nAFE: ${entry.afeNumber}\nCode: ${entry.costCode}`);
+                
+                setCapturedImage(null);
+                setExtractedData(null);
+                setView('entries');
+            };
+
+            if (view === 'home') {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+                        <div className="max-w-md w-full">
+                            <div className="text-center mb-8">
+                                <div className="inline-block bg-blue-600 p-4 rounded-2xl mb-4 shadow-lg shadow-blue-600/50">
+                                    <SparklesIcon />
+                                </div>
+                                <h1 className="text-4xl font-bold text-white mb-2">FieldCostPro</h1>
+                                <p className="text-blue-200">AI-Powered Invoice Tracking</p>
+                            </div>
+
+                            <div className="bg-white/10 backdrop-blur border border-white/20 rounded-2xl p-6 mb-6">
+                                <h2 className="text-white font-semibold mb-4">🚀 Scan & Track Invoices</h2>
+                                <div className="space-y-3 text-sm text-blue-100">
+                                    <div className="flex items-start gap-2">
+                                        <CheckIcon />
+                                        <span>AI reads vendor, amount, date automatically</span>
+                                    </div>
+                                    <div className="flex items-start gap-2">
+                                        <CheckIcon />
+                                        <span>Auto-suggests AFE numbers & cost codes</span>
+                                    </div>
+                                    <div className="flex items-start gap-2">
+                                        <CheckIcon />
+                                        <span>Track all costs in one place</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={() => setView('scan')}
+                                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 rounded-xl transition mb-3 flex items-center justify-center gap-2 shadow-lg shadow-blue-600/30"
+                            >
+                                <CameraIcon />
+                                Scan Invoice
+                            </button>
+
+                            {savedEntries.length > 0 && (
+                                <button
+                                    onClick={() => setView('entries')}
+                                    className="w-full bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold py-4 rounded-xl transition flex items-center justify-center gap-2"
+                                >
+                                    <ListIcon />
+                                    View Saved ({savedEntries.length})
+                                </button>
+                            )}
+
+                            <div className="mt-8 text-center text-xs text-blue-300">
+                               
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (view === 'scan') {
+                return (
+                    <div className="min-h-screen bg-slate-900 p-4">
+                        <div className="max-w-2xl mx-auto">
+                            <div className="flex items-center justify-between mb-6 pt-4">
+                                <button
+                                    onClick={() => {
+                                        setCapturedImage(null);
+                                        setExtractedData(null);
+                                        setError(null);
+                                        setView('home');
+                                    }}
+                                    className="text-blue-400 hover:text-blue-300 transition"
+                                >
+                                    ← Back
+                                </button>
+                                <h1 className="text-xl font-bold text-white">Scan Invoice</h1>
+                                <div className="w-16"></div>
+                            </div>
+
+                            {!capturedImage ? (
+                                <div className="flex flex-col items-center justify-center min-h-[70vh]">
+                                    <div className="bg-slate-800 border-2 border-dashed border-slate-600 rounded-3xl p-12 text-center w-full">
+                                        <div className="text-slate-400 mb-4 flex justify-center">
+                                            <CameraIcon />
+                                        </div>
+                                        <h2 className="text-white text-lg font-semibold mb-2">Take Photo of Invoice</h2>
+                                        <p className="text-slate-400 text-sm mb-6">AI will extract all data automatically</p>
+                                        
+                                        <label className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-8 rounded-xl cursor-pointer inline-block transition shadow-lg shadow-blue-600/30">
+                                            <input
+                                                type="file"
+                                                accept="image/*"
+                                                capture="environment"
+                                                onChange={handleImageCapture}
+                                                className="hidden"
+                                            />
+                                            Open Camera
+                                        </label>
+                                    </div>
+
+                                    <div className="mt-6 text-sm text-slate-400 text-center max-w-md">
+                                        <p className="mb-2">📸 Take a clear, well-lit photo</p>
+                                        <p className="mb-2">🤖 AI reads the invoice</p>
+                                        <p>✅ Review & save</p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    <div className="bg-slate-800 rounded-2xl p-4">
+                                        <img src={capturedImage} alt="Invoice" className="w-full rounded-lg" />
+                                    </div>
+
+                                    {error && (
+                                        <div className="bg-red-600/20 border border-red-600/30 rounded-xl p-4">
+                                            <div className="flex items-center gap-2 text-red-400 mb-2">
+                                                <AlertIcon />
+                                                <span className="font-semibold">Processing Failed</span>
+                                            </div>
+                                            <p className="text-sm text-red-200 mb-3">{error}</p>
+                                            <button
+                                                onClick={() => {
+                                                    setCapturedImage(null);
+                                                    setError(null);
+                                                }}
+                                                className="text-sm text-red-300 underline"
+                                            >
+                                                Try another photo
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {isProcessing ? (
+                                        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-8 text-center">
+                                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                                            <p className="text-white font-medium">AI is reading your invoice...</p>
+                                            <p className="text-slate-400 text-sm mt-2">This takes 5-10 seconds</p>
+                                        </div>
+                                    ) : extractedData && !error && (
+                                        <div className="space-y-4">
+                                            <div className="bg-green-600/20 border border-green-600/30 rounded-xl p-4">
+                                                <div className="flex items-center gap-2 text-green-400 mb-2">
+                                                    <CheckIcon />
+                                                    <span className="font-semibold">Data Extracted Successfully!</span>
+                                                </div>
+                                                <p className="text-sm text-green-200">Review and edit if needed</p>
+                                            </div>
+
+                                            <div className="bg-slate-800 border border-slate-700 rounded-2xl p-4 space-y-4">
+                                                <div>
+                                                    <label className="text-xs text-slate-400 uppercase tracking-wide block mb-2">Vendor</label>
+                                                    <input
+                                                        type="text"
+                                                        value={extractedData.vendor}
+                                                        onChange={(e) => setExtractedData({...extractedData, vendor: e.target.value})}
+                                                        className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500"
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <label className="text-xs text-slate-400 uppercase tracking-wide block mb-2">Amount</label>
+                                                    <div className="relative">
+                                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white">$</span>
+                                                        <input
+                                                            type="number"
+                                                            step="0.01"
+                                                            value={extractedData.amount}
+                                                            onChange={(e) => setExtractedData({...extractedData, amount: parseFloat(e.target.value) || 0})}
+                                                            className="w-full bg-slate-700 border border-slate-600 rounded-lg pl-8 pr-4 py-3 text-white focus:outline-none focus:border-blue-500"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div>
+                                                    <label className="text-xs text-slate-400 uppercase tracking-wide block mb-2">AFE Number</label>
+                                                    <input
+                                                        type="text"
+                                                        value={extractedData.afeNumber}
+                                                        onChange={(e) => setExtractedData({...extractedData, afeNumber: e.target.value})}
+                                                        className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500"
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <label className="text-xs text-slate-400 uppercase tracking-wide block mb-2">Cost Code</label>
+                                                    <select
+                                                        value={extractedData.costCode}
+                                                        onChange={(e) => setExtractedData({...extractedData, costCode: e.target.value})}
+                                                        className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500"
+                                                    >
+                                                        {COST_CODES.map(code => (
+                                                            <option key={code.code} value={code.code}>
+                                                                {code.code} - {code.name}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+
+                                                <div>
+                                                    <label className="text-xs text-slate-400 uppercase tracking-wide block mb-2">Date</label>
+                                                    <input
+                                                        type="date"
+                                                        value={extractedData.date}
+                                                        onChange={(e) => setExtractedData({...extractedData, date: e.target.value})}
+                                                        className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500"
+                                                    />
+                                                </div>
+
+                                                {extractedData.description && (
+                                                    <div>
+                                                        <label className="text-xs text-slate-400 uppercase tracking-wide block mb-2">Description</label>
+                                                        <textarea
+                                                            value={extractedData.description}
+                                                            onChange={(e) => setExtractedData({...extractedData, description: e.target.value})}
+                                                            className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500"
+                                                            rows="2"
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <button
+                                                    onClick={() => {
+                                                        setCapturedImage(null);
+                                                        setExtractedData(null);
+                                                    }}
+                                                    className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white font-semibold py-4 rounded-xl transition"
+                                                >
+                                                    Retake
+                                                </button>
+                                                <button
+                                                    onClick={saveEntry}
+                                                    className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-blue-600/30"
+                                                >
+                                                    <CheckIcon />
+                                                    Save Entry
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            }
+
+            if (view === 'entries') {
+                return (
+                    <div className="min-h-screen bg-slate-900 p-4">
+                        <div className="max-w-2xl mx-auto">
+                            <div className="flex items-center justify-between mb-6 pt-4">
+                                <button
+                                    onClick={() => setView('home')}
+                                    className="text-blue-400 hover:text-blue-300 transition"
+                                >
+                                    ← Back
+                                </button>
+                                <h1 className="text-xl font-bold text-white">Saved Entries</h1>
+                                <div className="w-16"></div>
+                            </div>
+
+                            {savedEntries.length === 0 ? (
+                                <div className="text-center py-12">
+                                    <p className="text-slate-400 mb-4">No entries yet</p>
+                                    <button
+                                        onClick={() => setView('scan')}
+                                        className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-xl transition"
+                                    >
+                                        Scan Your First Invoice
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {savedEntries.map(entry => (
+                                        <div key={entry.id} className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+                                            <div className="flex justify-between items-start mb-3">
+                                                <div>
+                                                    <div className="text-white font-semibold text-lg">{entry.vendor}</div>
+                                                    <div className="text-slate-400 text-sm">{entry.date}</div>
+                                                </div>
+                                                <div className="text-green-400 font-bold text-xl">${entry.amount.toLocaleString()}</div>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2 text-sm">
+                                                <div>
+                                                    <span className="text-slate-500">AFE:</span>
+                                                    <span className="text-slate-300 ml-2">{entry.afeNumber}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-slate-500">Code:</span>
+                                                    <span className="text-slate-300 ml-2">{entry.costCode}</span>
+                                                </div>
+                                            </div>
+                                            {entry.description && (
+                                                <div className="mt-2 text-sm text-slate-400">{entry.description}</div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            }
+
+            return null;
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
